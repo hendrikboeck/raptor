@@ -1,3 +1,21 @@
+################################################################################
+# raptor, a regex based REST routing library                                   #
+# Copyright (C) 2022, Hendrik Boeck <hendrikboeck.dev@protonmail.com>          #
+#                                                                              #
+# This program is free software: you can redistribute it and/or modify it      #
+# under the terms of the GNU General Public License as published by the Free   #
+# Software Foundation, either version 3 of the License, or (at your option)    #
+# any later version.                                                           #
+#                                                                              #
+# This program is distributed in the hope that it will be useful, but WITHOUT  #
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or        #
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for    #
+# more details.                                                                #
+#                                                                              #
+# You should have received a copy of the GNU General Public License along with #
+# this program.  If not, see <https://www.gnu.org/licenses/>.                  #
+################################################################################
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -15,13 +33,8 @@ class AbstractProvider(ABC):
 
   router: Any
 
-  @staticmethod
-  @abstractmethod
-  def build(router) -> AbstractProvider:
-    raise NotImplementedError()
-
   @abstractmethod
   def serve(self,
             host: Optional[str] = PROVIDER_DEFAULT_ADDR,
             port: Optional[int] = PROVIDER_DEFAULT_PORT) -> None:
-    io.info(f"Serving HTTP server at http://{host}:{port}")
+    io.info(f"Starting HTTP server at http://{host}:{port}")

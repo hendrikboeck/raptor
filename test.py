@@ -1,6 +1,6 @@
 from http import HTTPStatus
-from raptor import Router
-from raptor.tools import io
+
+import raptor
 from flask import Response, jsonify, make_response
 
 
@@ -13,9 +13,9 @@ def test(a: str) -> Response:
 
 
 def main() -> None:
-  io.configure("debug")
+  raptor.tools.io.configure("debug")
 
-  rt = Router(propagate_errors=False)
+  rt = raptor.Router(propagate_errors=False)
   rt.mount("/hello_world", hello_world, ["GET"])
   rt.mount("/test/{a:hex}", test, ["GET"])
 

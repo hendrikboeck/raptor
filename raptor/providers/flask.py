@@ -1,26 +1,55 @@
+################################################################################
+# raptor, a regex based REST routing library                                   #
+# Copyright (C) 2022, Hendrik Boeck <hendrikboeck.dev@protonmail.com>          #
+#                                                                              #
+# This program is free software: you can redistribute it and/or modify it      #
+# under the terms of the GNU General Public License as published by the Free   #
+# Software Foundation, either version 3 of the License, or (at your option)    #
+# any later version.                                                           #
+#                                                                              #
+# This program is distributed in the hope that it will be useful, but WITHOUT  #
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or        #
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for    #
+# more details.                                                                #
+#                                                                              #
+# You should have received a copy of the GNU General Public License along with #
+# this program.  If not, see <https://www.gnu.org/licenses/>.                  #
+################################################################################
+
+# -- STL
 from dataclasses import dataclass
 from typing import Any, Optional
-from datetime import datetime
 from http import HTTPStatus
 
+# -- LIBRARY
 import werkzeug
-from flask import Flask, request, Response, make_response, jsonify
+from flask import Flask, request, Response, make_response
 from flask_cors import CORS
 import waitress
 
-from raptor.providers.provider import AbstractProvider, PROVIDER_DEFAULT_ADDR, PROVIDER_DEFAULT_PORT
+# -- PROJECT
+from raptor.providers.provider import (AbstractProvider, PROVIDER_DEFAULT_ADDR,
+                                       PROVIDER_DEFAULT_PORT)
 from raptor.tools import io
 
 
 @dataclass
 class FlaskProvider(AbstractProvider):
+  """
+  Provider for the flask library
 
-  app: Flask
+  Attributes:
+    _flask (Flask): flask app for routing through the library
 
-  @staticmethod
-  def build(router: Any) -> AbstractProvider:
-    app = _build_flask_provider_from_router(router)
-    return FlaskProvider(router, app)
+  Args:
+    router (Router):
+  """
+
+  _flask: Flask
+
+  def __init__(self, router: Any) -> None:
+    super().__init__(router)
+    self._flask = _factory_build_flask_from_provider(self)
 
   def serve(self,
             host: Optional[str] = PROVIDER_DEFAULT_ADDR,
@@ -28,53 +57,75 @@ class FlaskProvider(AbstractProvider):
     super().serve(host, port)
 
     self.router.print_debug_information(host, port, self)
-    waitress.serve(app=self.app, host=host, port=port)
+    waitress.serve(app=self._flask, host=host, port=port)
 
-  def handle_func(self) -> Response:
-    pass
+  def handle_func(self, path: str, http_method: str) -> Response:
+    spec = self.router.match(path, http_method)
+    return spec.func(**spec.r_vars)
 
 
-##
-# Capsules the Router inside a Flask application. All changes made to
-# router object after built, will affect built Flask provider object.
-#
-# @param  router  router object from which provider should be built
-# @return Flask application of router
-def _build_flask_provider_from_router(router: Any) -> Flask:
-  # create base flask provider object
-  provider = Flask(__name__)
-  # enable cors for flask
-  if router.cors:
-    CORS(provider)
+def _tools_capitalize_all_string(_s: str) -> str:
+  """
+  Capitalizes every word in a string and not just the first letter, as default
+  `capitalize() -> str`.
 
-  def _capitalize(_s: str) -> str:
-    return " ".join([word.capitalize() for word in _s.split(" ")])
+  Args:
+    _s (str): string that should be capitalized
+
+  Returns:
+    str: capitalized string
+  """
+  return " ".join([word.capitalize() for word in _s.split(" ")])
+
+
+def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
+  """
+  Capsules the Router inside a Flask application. All changes made to
+  router object after built, will affect built Flask provider object.
+
+  Args:
+    _prv (FlaskProvider): refrence to parent provider object
+
+  Returns:
+    Flask: flask application of parent provider.
+  """
+  # constant list of all supported REST HTTP method types currently supported by
+  # flask.
+  FLASK_HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+
+  # create a new Flask app.
+  flask = Flask(__name__)
+
+  # if router has the CORS option set, support CORS in flask. Mostly necessary
+  # if working with Node.js based frontends in Debug Mode.
+  if _prv.router.cors:
+    CORS(flask)
+
+  # flask does not recognize an empty path as part of `<path:_path>`. For this
+  # reason the empty path has to handled seperatly. Raptor recognizes the empty
+  # path as `""`.
+  @flask.route(f"{_prv.router.prefix}/", methods=FLASK_HTTP_METHODS)
+  def _flask_default_route() -> Response:
+    return _prv.handle_func("", request.method)
 
   # root path supports all rest methods and just passes through the path after
   # the prefix (defined in config)
-  @provider.route(f"{router.prefix}/",
-                  methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-  def _provider_index_route() -> Response:
-    # passthrough to Router
-    return router.handle_func("", request.method)
+  @flask.route(f"{_prv.router.prefix}/<path:_path>", methods=FLASK_HTTP_METHODS)
+  def _flask_root_route(_path: str) -> Response:
+    return _prv.handle_func(_path, request.method)
 
-  # root path supports all rest methods and just passes through the path after
-  # the prefix (defined in config)
-  @provider.route(f"{router.prefix}/<path:_p>",
-                  methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-  def _provider_root_route(_p: str) -> Response:
-    # passthrough to Router
-    return router.handle_func(_p, request.method)
-
-  @provider.before_request
-  def _provider_before_request() -> None:
+  # log all incoming request with raptors internal logging tool `io`.
+  @flask.before_request
+  def _flask_before_request() -> None:
     io.debug(f"{request.method} {request.path} {request.scheme}")
 
-  @provider.after_request
-  def _provider_after_request(_resp: Response) -> Response:
+  # Wrapper for
+  @flask.after_request
+  def _flask_after_request(_resp: Response) -> Response:
     status_code = _resp.status_code
+    status_text = _tools_capitalize_all_string(status_code)
 
-    io.debug(f"    => Outcome: {_capitalize(_resp.status)}")
+    io.debug(f"    => Outcome: {status_text}")
     if status_code < 400:
       io.info(f"{request.method} {request.path} {request.scheme}, "
               f"{request.remote_addr} - {status_code}")
@@ -87,38 +138,11 @@ def _build_flask_provider_from_router(router: Any) -> Flask:
 
     return _resp
 
-  # global error handler for flask.
-  @provider.errorhandler(Exception)
-  def _provider_error_handler(_ex: Exception) -> Response:
-    if router.propagate_errors:
-      http_status = HTTPStatus.INTERNAL_SERVER_ERROR
-      ex_msg = str(_ex)
-
-      if isinstance(_ex.args, tuple):
-        http_status = _ex.args[1]
-        ex_msg = str(_ex.args[0])
-
-      # create json response with information on caught error
-      msg = {
-          "success": False,
-          "tod": datetime.now().isoformat(),  # time of discovery
-          "error": {
-              "type": _ex.__class__.__name__,
-              "message": ex_msg,
-              "http_name": http_status.phrase,
-              "http_code": http_status.value
-          }
-      }
-      # print debug information on caught error
-      io.debug(f"    => Exeption: {_ex.__class__.__name__}")
-      io.debug(f"        !> {ex_msg}")
-
-      return make_response(jsonify(msg), http_status.value)
+  @flask.errorhandler(Exception)
+  def _flask_error_handler(_ex: Exception) -> Response:
+    if isinstance(_ex, werkzeug.exceptions.HTTPException):
+      return make_response(_ex)
     else:
-      if isinstance(_ex, werkzeug.exceptions.HTTPException):
-        return make_response(_ex)
-      else:
-        return make_response("", HTTPStatus.INTERNAL_SERVER_ERROR.value)
+      return make_response(str(_ex), HTTPStatus.INTERNAL_SERVER_ERROR.value)
 
-  # return built provider
-  return provider
+  return flask

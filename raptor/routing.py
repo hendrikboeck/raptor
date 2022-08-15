@@ -1,3 +1,21 @@
+################################################################################
+# raptor, a regex based REST routing library                                   #
+# Copyright (C) 2022, Hendrik Boeck <hendrikboeck.dev@protonmail.com>          #
+#                                                                              #
+# This program is free software: you can redistribute it and/or modify it      #
+# under the terms of the GNU General Public License as published by the Free   #
+# Software Foundation, either version 3 of the License, or (at your option)    #
+# any later version.                                                           #
+#                                                                              #
+# This program is distributed in the hope that it will be useful, but WITHOUT  #
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or        #
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for    #
+# more details.                                                                #
+#                                                                              #
+# You should have received a copy of the GNU General Public License along with #
+# this program.  If not, see <https://www.gnu.org/licenses/>.                  #
+################################################################################
+
 ## TODO: rework to google style docstring
 # @file
 # @author Hendrik Boeck <hendrikboeck.dev@protonmail.com>
@@ -21,13 +39,9 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
 
-# -- LIBRARY
-from flask import Response
-
 # -- PROJECT
-#from raptor.rest import respond_with_error, create_response_json
-from raptor.tools.errors import NotSupportedError, RouteMatchingError
 from raptor.tools import io
+from raptor.tools.errors import HttpError, NotSupportedError
 from raptor.providers import AbstractProvider, FlaskProvider
 
 DEFAULT_PROVIDER = "FLASK"
@@ -330,7 +344,10 @@ class Router():
   # @return RocketSpecificPath for first parameter in tuple. If an error occurs,
   # second parameter will be set to an Error object of scheme
   # `Error(Msg, HttpStatus)`.
-  def match_route(self, route: str, http_method: str) -> SpecificRoute:
+  def match(self, route: str, http_method: str) -> SpecificRoute:
+    """
+    Will try to match
+    """
     templates = []
     modules = route.split("/")
     variables = {}
@@ -344,10 +361,9 @@ class Router():
     # returned, raise RuntimeError. If none was found, return None for route.
     if len(templates) != 1:
       if len(templates) > 1:
-        raise RouteMatchingError("to many matched routes found",
-                                 HTTPStatus.MULTIPLE_CHOICES)
-      raise RouteMatchingError("no matching routes could be found",
-                               HTTPStatus.NOT_FOUND)
+        raise HttpError(HTTPStatus.MULTIPLE_CHOICES,
+                        "to many matched routes found")
+      raise HttpError(HTTPStatus.NOT_FOUND, "no matching routes could be found")
 
     # rename templates[0] for easier writing
     template = templates[0]
@@ -429,39 +445,10 @@ class Router():
 
     return results
 
-  def handle_func(self, route_string: str, http_method: str) -> Response:
-    """
-    Handles an API-route call with the specific path 'routePath' and will
-    return a valid flask response or abort inside the function. If the specific
-    path can not be found in the internal router-paths, an error 404 will be
-    sent to user.
-
-    Args:
-      route_string (str): API route with variables set.
-      http_method (str): HTTP method as string.
-
-    Returns:
-      flask.Response: Reponse from internal function from path.
-    """
-    # search for matching template-route in routes
-    #try:
-    route = self.match_route(route_string, http_method)
-
-    # if route was found execute handler and pass variables
-    return route.func(**route.r_vars)
-    #except NotSupportedError as err:
-    #  io.debug(f"    => HTTP Support Error: {err.args[0]}")
-    #  #respond_with_error(err.args[1], err.args[0])
-    #  return {}
-    #except RouteMatchingError as err:
-    #  io.debug(f"    => Matching Error: {err.args[0]}")
-    #  #respond_with_error(err.args[1], err.args[0])
-    #  return {}
-
   def build_provider(self,
                      key: Optional[str] = DEFAULT_PROVIDER) -> AbstractProvider:
     key = key.upper()
     if key == "FLASK":
-      return FlaskProvider.build(self)
+      return FlaskProvider(self)
     else:
       raise RuntimeError()
