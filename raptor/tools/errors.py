@@ -32,19 +32,19 @@ ex = Exception()
 
 class HttpError(Exception):
 
-  http_status: HTTPStatus
+    http_status: HTTPStatus
 
-  def __init__(self, http_status: HTTPStatus, *args: object) -> None:
-    super().__init__(*args)
+    def __init__(self, http_status: HTTPStatus, *args: object) -> None:
+        super().__init__(*args)
 
-    self.http_status = http_status
+        self.http_status = http_status
 
 
 class NotSupportedError(Exception):
-  """Error for a not supported feature, function, etc.."""
-  pass
+    """Error for a not supported feature, function, etc.."""
+    pass
 
 
 class RouteMatchingError(Exception):
-  """Error for a not supported feature, function, etc.."""
-  pass
+    """Error for a not supported feature, function, etc.."""
+    pass

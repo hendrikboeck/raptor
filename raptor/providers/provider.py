@@ -24,17 +24,12 @@ from typing import Any, Optional
 
 from raptor.tools import io
 
-PROVIDER_DEFAULT_ADDR = "127.0.0.1"
-PROVIDER_DEFAULT_PORT = 8080
-
 
 @dataclass
 class AbstractProvider(ABC):
 
-  router: Any
+    router: Any
 
-  @abstractmethod
-  def serve(self,
-            host: Optional[str] = PROVIDER_DEFAULT_ADDR,
-            port: Optional[int] = PROVIDER_DEFAULT_PORT) -> None:
-    io.info(f"Starting HTTP server at http://{host}:{port}")
+    @abstractmethod
+    def serve(self, host: str, port: int) -> None:
+        io.info(f"Starting HTTP server at http://{host}:{port}")
