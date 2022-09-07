@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from raptor.tools import io
 
@@ -28,8 +28,8 @@ from raptor.tools import io
 @dataclass
 class AbstractProvider(ABC):
 
-    router: Any
+  router: Any
 
-    @abstractmethod
-    def serve(self, host: str, port: int) -> None:
-        io.info(f"Starting HTTP server at http://{host}:{port}")
+  @abstractmethod
+  def serve(self, host: str, port: int) -> None:
+    io.info(f"Starting HTTP server at http://{host}:{port}")

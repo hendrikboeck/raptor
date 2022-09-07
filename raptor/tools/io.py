@@ -75,7 +75,7 @@ logging.Logger: Logger object, which has LOGGER_NAME as identification. Will be
 
 
 class ColoredCliFormatter(logging.Formatter):
-    """
+  """
     Class that creates a specific logging.Formatter for the CLI logger of
     _logger.  Colors that are used for different logging levels can be
     configured via the static variable FORMATS.  Colors use the prefix `\033`
@@ -90,40 +90,40 @@ class ColoredCliFormatter(logging.Formatter):
         placeholder `%(logcolor)` mapped to different logging levels.
     """
 
-    FORMAT = f"\033[1m%(asctime)s ({TZ_NAME}) %(logcolor)%(levelname)-8s\033[39m |\033[0m %(message)s"
-    DATETIME = "%Y/%m/%d %H:%M:%S"
-    FORMATS = {
-        logging.DEBUG: FORMAT.replace("%(logcolor)", "\033[96m"),  # light cyan
-        logging.INFO: FORMAT.replace("%(logcolor)", "\033[90m"),  # light gray
-        logging.WARNING: FORMAT.replace("%(logcolor)",
-                                        "\033[93m"),  # light yellow
-        logging.ERROR: FORMAT.replace("%(logcolor)", "\033[91m"),  # light red
-        logging.CRITICAL: FORMAT.replace("%(logcolor)",
-                                         "\033[95m"),  # light magenta
-    }
+  FORMAT = f"\033[1m%(asctime)s ({TZ_NAME}) %(logcolor)%(levelname)-8s\033[39m |\033[0m %(message)s"
+  DATETIME = "%Y/%m/%d %H:%M:%S"
+  FORMATS = {
+      logging.DEBUG: FORMAT.replace("%(logcolor)", "\033[96m"),  # light cyan
+      logging.INFO: FORMAT.replace("%(logcolor)", "\033[90m"),  # light gray
+      logging.WARNING: FORMAT.replace("%(logcolor)",
+                                      "\033[93m"),  # light yellow
+      logging.ERROR: FORMAT.replace("%(logcolor)", "\033[91m"),  # light red
+      logging.CRITICAL: FORMAT.replace("%(logcolor)",
+                                       "\033[95m"),  # light magenta
+  }
 
-    def format(self, record: logging.LogRecord) -> str:
-        """
+  def format(self, record: logging.LogRecord) -> str:
+    """
       Args:
         record (logging.LogRecord): specific log record
 
       Returns:
         str: formated record as str
       """
-        logFmt = self.FORMATS.get(record.levelno)
-        formatter = logging.Formatter(logFmt, self.DATETIME)
-        return formatter.format(record)
+    logFmt = self.FORMATS.get(record.levelno)
+    formatter = logging.Formatter(logFmt, self.DATETIME)
+    return formatter.format(record)
 
-    def get_prefix(self, level: str, indent: Optional[int] = 0) -> str:
-        level = level.upper()
-        levelno = LEVELS.get(level)
+  def get_prefix(self, level: str, indent: Optional[int] = 0) -> str:
+    level = level.upper()
+    levelno = LEVELS.get(level)
 
-        result = self.FORMATS.get(levelno)
-        result = result.replace("%(asctime)s",
-                                datetime.now().strftime(self.DATETIME))
-        result = result.replace("%(levelname)-8s",
-                                level.ljust(8)).replace("%(message)s", "")
-        return result + indent * "    "
+    result = self.FORMATS.get(levelno)
+    result = result.replace("%(asctime)s",
+                            datetime.now().strftime(self.DATETIME))
+    result = result.replace("%(levelname)-8s",
+                            level.ljust(8)).replace("%(message)s", "")
+    return result + indent * "    "
 
 
 _log_formatter = logging.Formatter(
@@ -144,7 +144,7 @@ ColoredCliFormatter: Global formatter object, which defines the formatting of
 def configure(level: str,
               stream: Optional[str] = "SYS:STDERR",
               filepath: Optional[str] = None) -> None:
-    """
+  """
     Configures global variables and adds file- and cli-handler to logger.
 
     Args:
@@ -152,26 +152,26 @@ def configure(level: str,
       stream (str, optional):
       filepath (str, optional):
     """
-    global _logger, _cli_formatter, _log_formatter
+  global _logger, _cli_formatter, _log_formatter
 
-    level = level.upper()
-    log_level = LEVELS.get(level, LEVELS["INFO"])
-    _logger.setLevel(log_level)
+  level = level.upper()
+  log_level = LEVELS.get(level, LEVELS["INFO"])
+  _logger.setLevel(log_level)
 
-    console_stream = IO_STREAMS.get(stream, "SYS:STDERR")
-    console_handler = logging.StreamHandler(console_stream)
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(_cli_formatter)
-    _logger.addHandler(console_handler)
+  console_stream = IO_STREAMS.get(stream, "SYS:STDERR")
+  console_handler = logging.StreamHandler(console_stream)
+  console_handler.setLevel(log_level)
+  console_handler.setFormatter(_cli_formatter)
+  _logger.addHandler(console_handler)
 
-    if filepath is not None:
-        file_handler = logging.FileHandler(filepath)
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(_log_formatter)
-        _logger.addHandler(file_handler)
+  if filepath is not None:
+    file_handler = logging.FileHandler(filepath)
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(_log_formatter)
+    _logger.addHandler(file_handler)
 
-    # dont't propagate log messages to main logger
-    _logger.propagate = False
+  # dont't propagate log messages to main logger
+  _logger.propagate = False
 
 
 println = print
