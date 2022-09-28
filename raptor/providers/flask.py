@@ -18,7 +18,7 @@
 
 # -- STL
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 from http import HTTPStatus
 
 # -- LIBRARY
@@ -120,9 +120,9 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
   @flask.after_request
   def _flask_after_request(_resp: Response) -> Response:
     status_code = _resp.status_code
-    status_text = _tools_capitalize_all_string(status_code)
+    status_text = HTTPStatus(status_code).phrase
 
-    io.debug(f"    => Outcome: {status_text}")
+    io.debug(f"    => Outcome: {status_code}, {status_text}")
     if status_code < 400:
       io.info(f"{request.method} {request.path} {request.scheme}, "
               f"{request.remote_addr} - {status_code}")
