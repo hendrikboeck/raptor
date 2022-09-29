@@ -31,5 +31,5 @@ class AbstractProvider(ABC):
   router: Any
 
   @abstractmethod
-  def serve(self, host: str, port: int) -> None:
+  def serve(self, host: str, port: int, *args, **kwargs) -> None:
     io.info(f"Starting HTTP server at http://{host}:{port}")

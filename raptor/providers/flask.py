@@ -18,14 +18,16 @@
 
 # -- STL
 from dataclasses import dataclass
-from typing import Any
+import traceback
+from typing import Any, Optional
 from http import HTTPStatus
 
 # -- LIBRARY
-import werkzeug
 from flask import Flask, request, Response, make_response
 from flask_cors import CORS
 import waitress
+import fastwsgi
+import bjoern
 
 # -- PROJECT
 from raptor.providers.provider import AbstractProvider
@@ -51,11 +53,19 @@ class FlaskProvider(AbstractProvider):
     super().__init__(router)
     self._flask = _factory_build_flask_from_provider(self)
 
-  def serve(self, host: str, port: int) -> None:
+  def serve(self,
+            host: str,
+            port: int,
+            provider: Optional[str] = "waitress") -> None:
     super().serve(host, port)
-
     self.router.print_debug_information(host, port, self)
-    waitress.serve(app=self._flask, host=host, port=port)
+
+    if provider == "fastwsgi":
+      fastwsgi.run(wsgi_app=self._flask, host=host, port=port)
+    elif provider == "bjoern":
+      bjoern.run(self._flask, host, port)
+    else:
+      waitress.serve(app=self._flask, host=host, port=port)
 
   def handle_func(self, path: str, http_method: str) -> Response:
     spec = self.router.match(path, http_method)
@@ -141,10 +151,13 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
     if isinstance(_ex, HttpError):
       http_code = _ex.http_status.value
       http_name = _ex.http_status.phrase
+      if http_code >= 500:
+        io.error("".join(traceback.format_exception(_ex)))
       resp = make_response(f"{http_code} {http_name}", http_code)
       resp.mimetype = "text/plain"
       return resp
     else:
+      io.error("".join(traceback.format_exception(_ex)))
       resp = make_response(f"500 Internal Server Error", 500)
       resp.mimetype = "text/plain"
       return resp
