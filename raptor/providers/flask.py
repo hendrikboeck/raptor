@@ -30,6 +30,7 @@ import waitress
 # -- PROJECT
 from raptor.providers.provider import AbstractProvider
 from raptor.tools import io
+from raptor.tools.errors import HttpError
 
 
 @dataclass
@@ -137,9 +138,15 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
 
   @flask.errorhandler(Exception)
   def _flask_error_handler(_ex: Exception) -> Response:
-    if isinstance(_ex, werkzeug.exceptions.HTTPException):
-      return make_response(_ex)
+    if isinstance(_ex, HttpError):
+      http_code = _ex.http_status.value
+      http_name = _ex.http_status.phrase
+      resp = make_response(f"{http_code} {http_name}", http_code)
+      resp.mimetype = "text/plain"
+      return resp
     else:
-      return make_response(str(_ex), HTTPStatus.INTERNAL_SERVER_ERROR.value)
+      resp = make_response(f"500 Internal Server Error", 500)
+      resp.mimetype = "text/plain"
+      return resp
 
   return flask
