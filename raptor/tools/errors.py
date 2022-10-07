@@ -26,25 +26,21 @@
 # Package containing additional Error types.
 
 from http import HTTPStatus
+from typing import Any
 
-ex = Exception()
 
-
-class HttpError(Exception):
+class RaptorAbortException(Exception):
 
   http_status: HTTPStatus
 
   def __init__(self, http_status: HTTPStatus, *args: object) -> None:
     super().__init__(*args)
-
     self.http_status = http_status
 
-
-class NotSupportedError(Exception):
-  """Error for a not supported feature, function, etc.."""
-  pass
-
-
-class RouteMatchingError(Exception):
-  """Error for a not supported feature, function, etc.."""
-  pass
+  def payload(self) -> Any:
+    payload = {}
+    if len(self.args) == 1:
+      payload["message"] = self.args
+    else:
+      payload = self.args
+    return payload

@@ -41,7 +41,7 @@ from pathlib import Path
 
 # -- PROJECT
 from raptor.tools import io
-from raptor.tools.errors import HttpError, NotSupportedError
+from raptor.tools.errors import RaptorAbortException
 from raptor.providers import AbstractProvider, FlaskProvider
 
 SUPPORTED_HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH"]
@@ -188,7 +188,7 @@ class HttpMethodsMap():
           executed when http-methods are called.
 
     Raises:
-      NotSupportedError: If HTTP method is unkown and therefore not in the
+      Exception: If HTTP method is unkown and therefore not in the
           `SUPPORTED_HTTP_METHODS` list.
     """
     for method in http_methods:
@@ -198,7 +198,7 @@ class HttpMethodsMap():
         self._internal[method] = func
       else:
         # throw excpetion, if `method` is not a http-method
-        raise NotSupportedError(f"unsupported rest-method: '{method}'")
+        raise Exception(f"unsupported rest-method: '{method}'")
 
   def get(self, http_method_type: str) -> Optional[FunctionType]:
     """
@@ -359,11 +359,10 @@ class Router():
     # only one template should be returned for a route. If more then one are
     # returned, raise RuntimeError.  If none was found, return None for
     # route.
-    if len(templates) != 1:
-      if len(templates) > 1:
-        raise HttpError(HTTPStatus.MULTIPLE_CHOICES,
-                        "to many matched routes found")
-      raise HttpError(HTTPStatus.NOT_FOUND, "no matching routes could be found")
+    if len(templates) < 1:
+      raise RaptorAbortException(
+          HTTPStatus.NOT_FOUND,
+          "Route could not be matched to a registered template")
 
     # rename templates[0] for easier writing
     template = templates[0]
@@ -378,8 +377,8 @@ class Router():
     # check if function is supported by
     func = template.http_methods_map.get(http_method)
     if func is None:
-      raise NotSupportedError("HTTP method is not allowed on this route",
-                              HTTPStatus.METHOD_NOT_ALLOWED)
+      raise RaptorAbortException(HTTPStatus.METHOD_NOT_ALLOWED,
+                                 "No function was mapped to HTTP method")
 
     # return route object for specific route
     io.debug(f"    => Matched: ({func.__name__}) {http_method} "

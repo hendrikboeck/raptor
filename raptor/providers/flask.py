@@ -23,7 +23,7 @@ from typing import Any, Optional
 from http import HTTPStatus
 
 # -- LIBRARY
-from flask import Flask, request, Response, make_response
+from flask import Flask, request, Response, make_response, jsonify
 from flask_cors import CORS
 import waitress
 import fastwsgi
@@ -32,7 +32,8 @@ import bjoern
 # -- PROJECT
 from raptor.providers.provider import AbstractProvider
 from raptor.tools import io
-from raptor.tools.errors import HttpError
+from raptor.tools.errors import RaptorAbortException
+from raptor.tools.flask import make_status_response
 
 
 @dataclass
@@ -148,18 +149,37 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
 
   @flask.errorhandler(Exception)
   def _flask_error_handler(_ex: Exception) -> Response:
-    if isinstance(_ex, HttpError):
-      http_code = _ex.http_status.value
-      http_name = _ex.http_status.phrase
-      if http_code >= 500:
-        io.error("".join(traceback.format_exception(_ex)))
-      resp = make_response(f"{http_code} {http_name}", http_code)
-      resp.mimetype = "text/plain"
-      return resp
+    if isinstance(_ex, RaptorAbortException):
+      status_code = _ex.http_status
+      status_text = HTTPStatus(status_code).phrase
+
+      if status_code < 400:
+        io.debug(
+            f"    => Called abort(): But why? (HTTP STATUS < 400): {str(_ex)}")
+        return make_response(jsonify(_ex.payload()), _ex.http_status.value)
+      elif status_code >= 500:
+        io.debug(f"    => Called abort(): Internal Error: {str(_ex)}")
+        for line in traceback.format_exception(_ex):
+          io.error(line)
+      else:
+        io.debug(f"    => Called abort(): User Error: {str(_ex)}")
+        io.warning(
+            f"User Error may be investigated. Is something suspicious happening?"
+        )
+        io.warning(f"⋮ Ip: {request.remote_addr}")
+        io.warning(f"⋮ On: {request.path}")
+        io.warning(f"⋮ Exception: {str(_ex)}")
+        io.warning(f"⋮ Response: {status_code} {status_text}")
+
+      return make_status_response(_ex.http_status)
     else:
-      io.error("".join(traceback.format_exception(_ex)))
-      resp = make_response(f"500 Internal Server Error", 500)
-      resp.mimetype = "text/plain"
-      return resp
+      io.error("Caught unhandled Exception. Please fix issue in code.")
+      io.error("Will treat exception as Internal Server Error (CODE 500).")
+      io.error("Program won't terminate, handling Exception gracefully.")
+      io.error("⋮")
+      for part in traceback.format_exception(_ex):
+        for line in part.split("\n"):
+          io.error(f"⋮  {line}")
+      return make_status_response(HTTPStatus.INTERNAL_SERVER_ERROR)
 
   return flask
