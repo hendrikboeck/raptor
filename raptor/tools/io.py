@@ -91,16 +91,42 @@ class ColoredCliFormatter(logging.Formatter):
     """
 
   FORMAT = f"\033[1m%(asctime)s ({TZ_NAME}) %(logcolor)%(levelname)-8s\033[39m |\033[0m %(message)s"
+  FORMAT_SIMPLE = f"%(logcolor)%(logsymbol)\033[0m %(message)s"
   DATETIME = "%Y/%m/%d %H:%M:%S"
   FORMATS = {
-      logging.DEBUG: FORMAT.replace("%(logcolor)", "\033[96m"),  # light cyan
-      logging.INFO: FORMAT.replace("%(logcolor)", "\033[90m"),  # light gray
-      logging.WARNING: FORMAT.replace("%(logcolor)",
-                                      "\033[93m"),  # light yellow
-      logging.ERROR: FORMAT.replace("%(logcolor)", "\033[91m"),  # light red
-      logging.CRITICAL: FORMAT.replace("%(logcolor)",
-                                       "\033[95m"),  # light magenta
+      logging.DEBUG: FORMAT \
+          .replace("%(logcolor)", "\033[96m"),  # light cyan
+      logging.INFO: FORMAT \
+          .replace("%(logcolor)", "\033[90m"),  # light gray
+      logging.WARNING: FORMAT \
+          .replace("%(logcolor)", "\033[93m"),  # light yellow
+      logging.ERROR: FORMAT \
+          .replace("%(logcolor)", "\033[91m"),  # light red
+      logging.CRITICAL: FORMAT \
+          .replace("%(logcolor)", "\033[95m"),  # light magenta
   }
+  FORMATS_SIMPLE = {
+      logging.DEBUG: FORMAT_SIMPLE             \
+          .replace("%(logcolor)", "\033[96m")  \
+          .replace("%(logsymbol)", "[*]"),
+      logging.INFO: FORMAT_SIMPLE              \
+          .replace("%(logcolor)", "\033[90m")  \
+          .replace("%(logsymbol)", "[+]"),
+      logging.WARNING: FORMAT_SIMPLE           \
+          .replace("%(logcolor)", "\033[93m")  \
+          .replace("%(logsymbol)", "[?]"),
+      logging.ERROR: FORMAT_SIMPLE             \
+          .replace("%(logcolor)", "\033[91m")  \
+          .replace("%(logsymbol)", "[!]"),
+      logging.CRITICAL: FORMAT_SIMPLE          \
+          .replace("%(logcolor)", "\033[95m")  \
+          .replace("%(logsymbol)", "[~]"),
+  }
+
+  simple: bool
+
+  def __init__(self, simple: Optional[bool] = False) -> None:
+    self.simple = simple
 
   def format(self, record: logging.LogRecord) -> str:
     """
@@ -110,7 +136,10 @@ class ColoredCliFormatter(logging.Formatter):
       Returns:
         str: formated record as str
       """
-    logFmt = self.FORMATS.get(record.levelno)
+    if self.simple:
+      logFmt = self.FORMATS_SIMPLE.get(record.levelno)
+    else:
+      logFmt = self.FORMATS.get(record.levelno)
     formatter = logging.Formatter(logFmt, self.DATETIME)
     return formatter.format(record)
 
@@ -118,11 +147,16 @@ class ColoredCliFormatter(logging.Formatter):
     level = level.upper()
     levelno = LEVELS.get(level)
 
-    result = self.FORMATS.get(levelno)
-    result = result.replace("%(asctime)s",
-                            datetime.now().strftime(self.DATETIME))
-    result = result.replace("%(levelname)-8s",
-                            level.ljust(8)).replace("%(message)s", "")
+    if self.simple:
+      result = self.FORMATS.get(levelno)
+      result = result.replace("%(message)s", "")
+    else:
+      result = self.FORMATS.get(levelno)
+      result = result.replace("%(asctime)s",
+                              datetime.now().strftime(self.DATETIME))
+      result = result.replace("%(levelname)-8s",
+                              level.ljust(8)).replace("%(message)s", "")
+
     return result + indent * "    "
 
 
@@ -143,7 +177,8 @@ ColoredCliFormatter: Global formatter object, which defines the formatting of
 
 def configure(level: str,
               stream: Optional[str] = "SYS:STDERR",
-              filepath: Optional[str] = None) -> None:
+              filepath: Optional[str] = None,
+              simple: Optional[bool] = False) -> None:
   """
     Configures global variables and adds file- and cli-handler to logger.
 
@@ -153,6 +188,8 @@ def configure(level: str,
       filepath (str, optional):
     """
   global _logger, _cli_formatter, _log_formatter
+
+  _cli_formatter = ColoredCliFormatter(simple)
 
   level = level.upper()
   log_level = LEVELS.get(level, LEVELS["INFO"])

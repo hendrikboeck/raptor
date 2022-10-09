@@ -164,7 +164,7 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
       else:
         io.debug(f"    => Called abort(): User Error: {str(_ex)}")
         io.warning(
-            f"User Error may be investigated. Is something suspicious happening?"
+            "User Error may be investigated. Is something suspicious happening?"
         )
         io.warning(f"⋮ Ip: {request.remote_addr}")
         io.warning(f"⋮ On: {request.path}")

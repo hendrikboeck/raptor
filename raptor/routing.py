@@ -332,20 +332,18 @@ class Router():
 
     return self
 
-  ##
-  # Will try to find a match for a given route in internal template-paths. If
-  # none can be found, None will be returned. If a route has been found, a
-  # RocketSpecificPath with the variables and function will be returned.
-  #
-  # @param  route   api path with variables set
-  # @param  httpApiFunc   HTTP method that was used for request as string
-  #
-  # @return RocketSpecificPath for first parameter in tuple. If an error occurs,
-  # second parameter will be set to an Error object of scheme
-  # `Error(Msg, HttpStatus)`.
   def match(self, route: str, http_method: str) -> SpecificRoute:
     """
-    Will try to match
+    Will try to find a match for a given route in internal template-paths. If
+    none can be found, None will be returned. If a route has been found, a
+    RocketSpecificPath with the variables and function will be returned.
+
+    @param  route   api path with variables set
+    @param  http_method   HTTP method that was used for request as string
+
+    @return RocketSpecificPath for first parameter in tuple. If an error occurs,
+    second parameter will be set to an Error object of scheme
+    `Error(Msg, HttpStatus)`.
     """
     templates = []
     modules = route.split("/")
@@ -357,8 +355,7 @@ class Router():
         templates.append(template)
 
     # only one template should be returned for a route. If more then one are
-    # returned, raise RuntimeError.  If none was found, return None for
-    # route.
+    # returned, raise RaptorAbortException.
     if len(templates) < 1:
       raise RaptorAbortException(
           HTTPStatus.NOT_FOUND,
