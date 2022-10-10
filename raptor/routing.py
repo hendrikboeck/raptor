@@ -97,6 +97,10 @@ class RouteVariableType(Enum):
   INT = _RouteVariableTypeRepr(int, r"[-+]?\d+")
   UINT = _RouteVariableTypeRepr(int, r"\d+")
   FLOAT = _RouteVariableTypeRepr(float, r"[-+]?\d*\.?\d+|\d+")
+  UUID0 = _RouteVariableTypeRepr(
+      str,
+      r"[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}"
+  )
   UUID = _RouteVariableTypeRepr(
       str,
       r"[a-f0-9]{8}-?[a-f0-9]{4}-?[1-5][a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}"
@@ -268,26 +272,25 @@ class Router():
   Router class only replaces the standard routing of flask, with a more
   versatile regex router, than the default flask router.
 
+  Attributes:
+    routes (dict[Pattern, TemplatedRoute]):
+    prefix (str):
+    cors (bool):
+
   Args:
-    host (str, optional):
-    port (int, optional):
     prefix (str, optional):
-    propagate_errors (bool, optional):
     cors (bool, optional):
   """
 
   routes: dict[Pattern, TemplatedRoute]
   prefix: str
-  propagate_errors: bool
   cors: bool
 
   def __init__(self,
                prefix: Optional[str] = "",
-               propagate_errors: Optional[bool] = False,
                cors: Optional[bool] = False) -> None:
     self.routes = {}
     self.prefix = prefix
-    self.propagate_errors = propagate_errors
     self.cors = cors
 
   def mount(self, route_string: str, func: FunctionType,
@@ -302,6 +305,9 @@ class Router():
       func (FunctionType): Function that should be run on route-match.
       accepted_http_methods (list[str]): List of HTTP Methods that are
           accepted.
+
+    Returns:
+      Router: Reference to self object, for chaining commands
     """
     # split route into individual modules
     modules = route_string.split("/")
@@ -441,9 +447,9 @@ class Router():
 
     return results
 
-  def build_provider(self, key: Optional[str] = "FLASK") -> AbstractProvider:
-    key = key.upper()
-    if key == "FLASK":
+  def build_provider(self, key: Optional[str] = "flask") -> AbstractProvider:
+    key = key.lower()
+    if key == "flask":
       return FlaskProvider(self)
     else:
       raise RuntimeError()
