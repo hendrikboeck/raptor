@@ -14,8 +14,15 @@ def ping_handler() -> Response:
   return resp
 
 
+def excpetion() -> Exception:
+  return Exception("lul")
+
+
 def abort_handler() -> Response:
-  abort(HTTPStatus.BAD_REQUEST, "Job with JID 'test' could not be found")
+  #abort(HTTPStatus.BAD_REQUEST, "Job with JID 'test' could not be found")
+  some_task = excpetion()
+  print(f"{some_task=}")
+  abort(HTTPStatus.INTERNAL_SERVER_ERROR, some_task)
 
 
 def exception_handler() -> Response:

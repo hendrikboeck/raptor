@@ -27,6 +27,7 @@
 
 from http import HTTPStatus
 from typing import Any
+import traceback
 
 
 class RaptorAbortException(Exception):
@@ -44,3 +45,16 @@ class RaptorAbortException(Exception):
     else:
       payload = self.args
     return payload
+
+  def backtrace_lines(self) -> list[str]:
+    result = []
+
+    if isinstance(self.args[0], Exception):
+      for part in traceback.format_exception(self.args[0]):
+        result.extend(part.split("\n"))
+      result.append("")
+
+    for part in traceback.format_exception(self):
+      result.extend(part.split("\n"))
+
+    return result

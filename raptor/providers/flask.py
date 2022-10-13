@@ -159,8 +159,11 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
         return make_response(jsonify(_ex.payload()), _ex.http_status.value)
       elif status_code >= 500:
         io.debug(f"    => Called abort(): Internal Error: {str(_ex)}")
-        for line in traceback.format_exception(_ex):
-          io.error(line)
+        io.debug(f"    => Backtrace Error:")
+        io.debug("       ⋮")
+        for line in _ex.backtrace_lines():
+          io.debug(f"       ⋮ {line}")
+        io.error(f"RaptorAbortExcpetion: INTERNAL SERVER ERROR: {str(_ex)}")
       else:
         io.debug(f"    => Called abort(): User Error: {str(_ex)}")
         io.warning(
