@@ -29,8 +29,7 @@ def exception_handler() -> Response:
   raise Exception("what the fucking hell")
 
 
-def test_handler(var: str) -> Response:
-  io.debug(f"    => {var=}")
+def test_handler(var0: str, var1: int, var2: float) -> Response:
   return make_status_response(HTTPStatus.OK)
 
 
@@ -41,7 +40,7 @@ def main() -> None:
   rt.mount("/", ping_handler, ["GET"])
   rt.mount("/abort", abort_handler, ["GET"])
   rt.mount("/exception", exception_handler, ["GET"])
-  rt.mount("/test/{var:str}.jpg", test_handler, ["GET"])
+  rt.mount("/test/{var0:str}_{var1:int}_{var2:float}.jpg", test_handler, ["GET"])
 
   pv = rt.build_provider("flask")
   pv.serve("127.0.0.1", 4321)

@@ -27,17 +27,20 @@
 
 # -- FUTURE (subject to change, handle with care)
 from __future__ import annotations
+from ctypes import Union
+from mimetypes import types_map
 
 # -- STL
 import re
 import os
 import sys
 from types import FunctionType
-from typing import Optional, Any, Pattern
+from typing import NamedTuple, Optional, Any, OrderedDict, Pattern
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from pathlib import Path
+from xml.dom.minidom import NamedNodeMap
 
 # -- PROJECT
 from raptor.tools import io
@@ -98,9 +101,7 @@ class RouteVariableType(Enum):
   UINT = _RouteVariableTypeRepr(int, r"\d+")
   FLOAT = _RouteVariableTypeRepr(float, r"[-+]?\d*\.?\d+|\d+")
   UUID0 = _RouteVariableTypeRepr(
-      str,
-      r"[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}"
-  )
+      str, r"[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}")
   UUID = _RouteVariableTypeRepr(
       str,
       r"[a-f0-9]{8}-?[a-f0-9]{4}-?[1-5][a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}"
@@ -119,6 +120,11 @@ class RouteVariableType(Enum):
   SHA3_256 = SHA256
   SHA3_384 = SHA384
   SHA3_512 = SHA512
+
+  @staticmethod
+  def get_rx_types() -> str:
+    return "|".join(
+        [RouteVariableType.as_string(ty) for ty in RouteVariableType])
 
   @staticmethod
   def as_string(ty: _RouteVariableTypeRepr) -> str:
@@ -160,12 +166,10 @@ class RouteVariable():
     key (str): Key of variable.
 
   Args:
-    index (int): Index of module after .split("/")
     ty (type): Represented python type of variable
     key (str): Key of variable.
   """
 
-  index: int
   key: str
   rxt: RouteVariableType
 
@@ -214,7 +218,15 @@ class HttpMethodsMap():
     return self._internal.get(http_method_type)
 
 
-class TemplatedRoute():
+@dataclass
+class VarFilter():
+  type_map: list[type]
+
+  def use(self, vars: Union[tuple, list]) -> list:
+    return [t(v) for t, v in zip(self.type_map, vars)]
+
+
+class Route():
   """
   Defines a templated path object for Router to figure out the original
   templated path, position and type of path-variables and function pointers
@@ -235,33 +247,20 @@ class TemplatedRoute():
     http_methods (list[str]): list of HTTP Methods that are accepted
   """
 
-  tmpl_string: str
-  tmpl_vars: list[RouteVariable]
+  tpl: str
+  var_filter: VarFilter
   http_methods_map: HttpMethodsMap
 
-  def __init__(self, tmpl_string: str, tmpl_vars: list[RouteVariable],
-               func: FunctionType, http_methods: list[str]) -> None:
-    self.tmpl_vars = tmpl_vars
-    self.tmpl_string = tmpl_string
+  def __init__(self, tpl: str, var_filter: VarFilter, func: FunctionType,
+               http_methods: list[str]) -> None:
+    self.tpl = tpl
+    self.var_filter = var_filter
     self.http_methods_map = HttpMethodsMap()
     self.http_methods_map.register(http_methods, func)
 
 
-@dataclass
-class SpecificRoute():
-  """
-  Returned tuple on a specific path with mapped variables and function.
-
-  Attributes:
-    r_vars (dict[str, Any]): Mapped variables from templated path.
-    func (FunctionType): Function pointer
-
-  Args:
-    r_vars (dict[str, Any]): Mapped variables from templated path.
-    func (FunctionType): Function pointer
-  """
-
-  r_vars: dict[str, Any]
+class RouteHandle(NamedTuple):
+  args: list
   func: FunctionType
 
 
@@ -282,19 +281,15 @@ class Router():
     cors (bool, optional):
   """
 
-  routes: dict[Pattern, TemplatedRoute]
+  routes: OrderedDict[Pattern, Route]
   prefix: str
-  cors: bool
 
-  def __init__(self,
-               prefix: Optional[str] = "",
-               cors: Optional[bool] = False) -> None:
-    self.routes = {}
+  def __init__(self, prefix: str = "") -> None:
+    self.routes = OrderedDict()
     self.prefix = prefix
-    self.cors = cors
 
-  def mount(self, route_string: str, func: FunctionType,
-            accepted_http_methods: list[str]) -> Router:
+  def mount(self, tpl: str, func: FunctionType,
+            http_methods: list[str]) -> Router:
     """
     Registers a handler function for a specific template-route. Variables
     have to be declared as "{name:type}" (supported types can be found in
@@ -310,35 +305,32 @@ class Router():
       Router: Reference to self object, for chaining commands
     """
     # split route into individual modules
-    modules = route_string.split("/")
+    modules = tpl.split("/")
     modules = list(filter(("").__ne__, modules))
+    tpl = "/".join(modules)
+    rxr = tpl
+    print(f"{rxr=}")
     # initialize list for varibles found in path
-    variables = []
+    var_rx = f"{{(\w+):({RouteVariableType.get_rx_types()})}}"
+    var_list = re.findall(var_rx, tpl)
+    var_filters = []
+    for key, ty in var_list:
+      rvt = RouteVariableType.from_string(ty).value
+      rxr = rxr.replace(f"{{{key}:{ty}}}", f"({rvt.rx})")
+      var_filters.append(rvt.ty)
+    rxr = f"^{rxr}$"
 
-    # convert variable modules to regex and save information about position,
-    # type and name of variable in variables list.
-    for index, mod in enumerate(modules):
-      # check if module is variable
-      if mod.startswith("{"):
-        # save information about varibale in variables-list
-        varname, vartype = tuple(mod[1:-1].split(":"))
-        vartype = RouteVariableType.from_string(vartype)
-        variables.append(RouteVariable(index, varname, vartype))
-        # convert variable-template to regex
-        modules[index] = vartype.value.rx
+    print(f"registered {rxr}")
 
-    # convert whole path to single regex expression
-    regex = re.compile("^" + "/".join(modules) + "$")
     # register route-template under regex in container 'routes'
-    if self.routes.get(regex) is None:
-      self.routes[regex] = TemplatedRoute(route_string, variables, func,
-                                          accepted_http_methods)
+    if self.routes.get(rxr) is None:
+      self.routes[rxr] = Route(tpl, VarFilter(var_filters), func, http_methods)
     else:
-      self.routes[regex].http_methods_map.register(accepted_http_methods, func)
+      self.routes[rxr].http_methods_map.register(http_methods, func)
 
     return self
 
-  def match(self, route: str, http_method: str) -> SpecificRoute:
+  def match(self, req_route: str, http_method: str) -> RouteHandle:
     """
     Will try to find a match for a given route in internal template-paths. If
     none can be found, None will be returned. If a route has been found, a
@@ -351,42 +343,34 @@ class Router():
     second parameter will be set to an Error object of scheme
     `Error(Msg, HttpStatus)`.
     """
-    templates = []
-    modules = route.split("/")
-    variables = {}
+    r = None
+    args = None
 
     # get templates that match regex and path
-    for regex, template in self.routes.items():
-      if regex.match(route) is not None:
-        templates.append(template)
+    for rx, route in self.routes.items():
+      if re.match(rx, req_route):
+        r = route
+        uargs = re.findall(rx, req_route)[0]
+        args = route.var_filter.use(uargs)
+        break
 
     # only one template should be returned for a route. If more then one are
     # returned, raise RaptorAbortException.
-    if len(templates) < 1:
+    if r is None:
       raise RaptorAbortException(
           HTTPStatus.NOT_FOUND,
           "Route could not be matched to a registered template")
 
-    # rename templates[0] for easier writing
-    template = templates[0]
-    # map values for variables into dictionary (values are casted as
-    # represented types)
-    for var in template.tmpl_vars:
-      if var.rxt == RouteVariableType.PATH:
-        variables[var.key] = var.rxt.value.ty("/".join(modules[var.index:]))
-      else:
-        variables[var.key] = var.rxt.value.ty(modules[var.index])
-
     # check if function is supported by
-    func = template.http_methods_map.get(http_method)
+    func = r.http_methods_map.get(http_method)
     if func is None:
       raise RaptorAbortException(HTTPStatus.METHOD_NOT_ALLOWED,
                                  "No function was mapped to HTTP method")
 
     # return route object for specific route
-    io.debug(f"    => Matched: ({func.__name__}) {http_method} "
-             f"{template.tmpl_string}")
-    return SpecificRoute(variables, func)
+    io.debug(f"    => Matched: ({func.__name__}) {http_method} {r.tpl}")
+    io.debug(f"    => Vars: {args}")
+    return RouteHandle(args, func)
 
   def print_debug_information(self, host: str, port: int,
                               provider: AbstractProvider) -> None:
@@ -422,7 +406,7 @@ class Router():
     Returns:
       list[str]: List of routes as string.
     """
-    return [t.tmpl_string for t in self.routes.values()]
+    return [t.tpl for t in self.routes.values()]
 
   def get_routes_detailed(self) -> list[str]:
     """
@@ -443,13 +427,13 @@ class Router():
       methods = t.http_methods_map._internal.keys()
       methods = ",".join(methods)
       # append combined string to results
-      results.append(f"{t.tmpl_string} {methods}")
+      results.append(f"{t.tpl} {methods}")
 
     return results
 
-  def build_provider(self, key: Optional[str] = "flask") -> AbstractProvider:
-    key = key.lower()
-    if key == "flask":
+  def build_provider(self, name: str = "flask") -> AbstractProvider:
+    name = name.lower()
+    if name == "flask":
       return FlaskProvider(self)
     else:
       raise RuntimeError()

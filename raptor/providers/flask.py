@@ -49,15 +49,14 @@ class FlaskProvider(AbstractProvider):
   """
 
   _flask: Flask
+  cors: bool
 
-  def __init__(self, router: Any) -> None:
+  def __init__(self, router: Any, cors: bool = False) -> None:
     super().__init__(router)
+    self.cors = cors
     self._flask = _factory_build_flask_from_provider(self)
 
-  def serve(self,
-            host: str,
-            port: int,
-            provider: Optional[str] = "waitress") -> None:
+  def serve(self, host: str, port: int, provider: str = "waitress") -> None:
     super().serve(host, port)
     self.router.print_debug_information(host, port, self)
 
@@ -69,8 +68,8 @@ class FlaskProvider(AbstractProvider):
       waitress.serve(app=self._flask, host=host, port=port)
 
   def handle_func(self, path: str, http_method: str) -> Response:
-    spec = self.router.match(path, http_method)
-    return spec.func(**spec.r_vars)
+    handle = self.router.match(path, http_method)
+    return handle.func(*handle.args)
 
 
 def _tools_capitalize_all_string(_s: str) -> str:
@@ -107,7 +106,7 @@ def _factory_build_flask_from_provider(_prv: FlaskProvider) -> Flask:
 
   # if router has the CORS option set, support CORS in flask. Mostly necessary
   # if working with Node.js based frontends in Debug Mode.
-  if _prv.router.cors:
+  if _prv.cors:
     CORS(flask)
 
   # flask does not recognize an empty path as part of `<path:_path>`. For this
